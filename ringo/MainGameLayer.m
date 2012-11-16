@@ -109,15 +109,17 @@
 - (void)ringoFlickedFrom:(CGPoint)startPoint endPoint:(CGPoint)endPoint {
     Ringo* targetRingo = [self findRingoAt:startPoint];
     if (targetRingo) {
-        //方向を確定
+
+        //タッチの始点・終点から一次方程式を解く
+        float a = (startPoint.y - endPoint.y) / (startPoint.x - endPoint.x);
+        float b = endPoint.y - (a * endPoint.x);
+        float x, y;
+
+        //方程式の線と、上下左右の端が交差する点をそれぞれ割り出し
         CGSize size = [[CCDirector sharedDirector] winSize];
         float topEdgePos = size.height - 50;
         float rightEdgePos = size.width;
 
-        float a = (endPoint.y - startPoint.x) / (endPoint.x - startPoint.x);
-        float b = endPoint.y - (a * endPoint.x);
-        float x, y;
-        
         x = 0;
         CGPoint leftPt = CGPointMake(x, (a * x + b));
         x = rightEdgePos;
@@ -161,6 +163,8 @@
               NSStringFromCGPoint(bottomPt),
               NSStringFromCGPoint(dist)
               );
+        
+        //リンゴを移動
         CCMoveTo* moveTo = [CCMoveTo actionWithDuration:0.5f position:dist];
         [targetRingo runAction:moveTo];
     }
