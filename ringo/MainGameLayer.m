@@ -28,6 +28,7 @@
     CGRect deadRingo;
     CGRect enemies[2];
     CGRect bird;
+    CGPoint touchStartPoint;
 }
 
 +(CCScene *) scene {
@@ -70,7 +71,7 @@
                 [ringoGridRow addObject:[NSNull null]];
             }
         }
-        
+        self.isTouchEnabled = YES;
         [self scheduleUpdate];
 	}
 	return self;
@@ -78,6 +79,113 @@
 
 - (void)dealloc {
 	
+}
+
+- (void)registerWithTouchDispatcher {
+    [[[CCDirector sharedDirector] touchDispatcher] addTargetedDelegate:self
+                                                              priority:0
+                                                       swallowsTouches:YES];
+}
+
+#pragma mark CCTargetedTouchDelegate <NSObject>
+
+- (BOOL)ccTouchBegan:(UITouch *)touch withEvent:(UIEvent *)event {
+    touchStartPoint = [self convertTouchToNodeSpace: touch];
+    return YES;
+}
+- (void)ccTouchMoved:(UITouch *)touch withEvent:(UIEvent *)event {
+    
+}
+- (void)ccTouchEnded:(UITouch *)touch withEvent:(UIEvent *)event {
+    CGPoint touchEndPoint = [self convertTouchToNodeSpace: touch];
+    [self ringoFlickedFrom:touchStartPoint endPoint:touchEndPoint];
+}
+- (void)ccTouchCancelled:(UITouch *)touch withEvent:(UIEvent *)event {
+    
+}
+
+- (void)ringoFlickedFrom:(CGPoint)startPoint endPoint:(CGPoint)endPoint {
+    Ringo* targetRingo = [self findRingoAt:startPoint];
+    if (targetRingo) {
+        //方向を確定
+        float topEdgePos = 568;
+        float rightEdgePos = 320;
+
+        float a = (endPoint.y - startPoint.x) / (endPoint.x - startPoint.x);
+        float b = endPoint.y - (a * endPoint.x);
+        float x, y;
+        
+        float deltaX = endPoint.x - startPoint.x;
+        float deltaY = endPoint.y - startPoint.y;
+        if (deltaX < 0) {
+            if (deltaY < 0) {
+                NSLog(@"左下");
+                if (endPoint.y < endPoint.x) {
+                    y = 0;
+                    x = (y - b) / a;
+                } else {
+                    x = 0;
+                    y = a * x + b;
+                }
+            } else {
+                NSLog(@"左上");
+                if (topEdgePos - endPoint.y < endPoint.x) {
+                    y = topEdgePos;
+                    x = (y - b) / a;
+                } else {
+                    x = 0;
+                    y = a * x + b;
+                }
+            }
+        } else {
+            if (deltaY < 0) {
+                NSLog(@"右下");
+                if (endPoint.y < rightEdgePos - endPoint.x) {
+                    y = 0;
+                    x = (y - b) / a;
+                } else {
+                    x = rightEdgePos;
+                    y = a * x + b;
+                }
+            } else {
+                NSLog(@"右上");
+                if (topEdgePos - endPoint.y < rightEdgePos - endPoint.x) {
+                    y = topEdgePos;
+                    x = (y - b) / a;
+                } else {
+                    x = rightEdgePos;
+                    y = a * x + b;
+                }
+            }
+        }
+        if (x > rightEdgePos) x = rightEdgePos;
+        if (y > topEdgePos) y = topEdgePos;
+        
+        CGPoint dist = CGPointMake(x, y);
+        CCLOG(@"start(%d,%d) end(%d,%d) dist(%d,%d)", (int)startPoint.x, (int)startPoint.y, (int)endPoint.x, (int)endPoint.y, (int)dist.x, (int)dist.y);
+        CCMoveTo* moveTo = [CCMoveTo actionWithDuration:0.5f position:dist];
+        [targetRingo runAction:moveTo];
+    }
+}
+
+//タップした場所にいるりんごを取得
+- (Ringo*)findRingoAt:(CGPoint)point {
+    for (NSArray* row in self.ringoGrid) {
+        for (id item in row) {
+            if (item != [NSNull null]) {
+                Ringo* ringo = (Ringo*)item;
+                float h = ringo.contentSize.height;
+                float w = ringo.contentSize.width;
+                float x = ringo.position.x - w/2;
+                float y = ringo.position.y - h/2;
+                CGRect rect = CGRectMake(x, y, w, h);
+                if (CGRectContainsPoint(rect, point)) {
+                    return ringo;
+                }
+            }
+        }
+    }
+    return nil;
 }
 
 #pragma mark main loop
