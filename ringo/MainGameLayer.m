@@ -91,6 +91,7 @@
 
 - (BOOL)ccTouchBegan:(UITouch *)touch withEvent:(UIEvent *)event {
     touchStartPoint = [self convertTouchToNodeSpace: touch];
+    //CCLOG(@"touch start: %d,%d", (int)touchStartPoint.x, (int)touchStartPoint.y);
     return YES;
 }
 - (void)ccTouchMoved:(UITouch *)touch withEvent:(UIEvent *)event {
@@ -98,6 +99,7 @@
 }
 - (void)ccTouchEnded:(UITouch *)touch withEvent:(UIEvent *)event {
     CGPoint touchEndPoint = [self convertTouchToNodeSpace: touch];
+    //CCLOG(@"touch end: %d,%d", (int)touchEndPoint.x, (int)touchEndPoint.y);
     [self ringoFlickedFrom:touchStartPoint endPoint:touchEndPoint];
 }
 - (void)ccTouchCancelled:(UITouch *)touch withEvent:(UIEvent *)event {
@@ -108,61 +110,57 @@
     Ringo* targetRingo = [self findRingoAt:startPoint];
     if (targetRingo) {
         //方向を確定
-        float topEdgePos = 568;
-        float rightEdgePos = 320;
+        CGSize size = [[CCDirector sharedDirector] winSize];
+        float topEdgePos = size.height - 50;
+        float rightEdgePos = size.width;
 
         float a = (endPoint.y - startPoint.x) / (endPoint.x - startPoint.x);
         float b = endPoint.y - (a * endPoint.x);
         float x, y;
+        
+        x = 0;
+        CGPoint leftPt = CGPointMake(x, (a * x + b));
+        x = rightEdgePos;
+        CGPoint rightPt = CGPointMake(x, (a * x + b));
+        y = 0;
+        CGPoint bottomPt = CGPointMake(((y - b) / a), y);
+        y = topEdgePos;
+        CGPoint topPt = CGPointMake(((y - b) / a), y);
+        
+        //方向から目的地を決定
+        CGRect winFrame = CGRectMake(0, 0, size.width + 1, size.height + 1); //ぴったりの時もtrueを返すために+1
+        CGPoint dist;
         
         float deltaX = endPoint.x - startPoint.x;
         float deltaY = endPoint.y - startPoint.y;
         if (deltaX < 0) {
             if (deltaY < 0) {
                 NSLog(@"左下");
-                if (endPoint.y < endPoint.x) {
-                    y = 0;
-                    x = (y - b) / a;
-                } else {
-                    x = 0;
-                    y = a * x + b;
-                }
+                dist = CGRectContainsPoint(winFrame, leftPt) ? leftPt : bottomPt;
             } else {
                 NSLog(@"左上");
-                if (topEdgePos - endPoint.y < endPoint.x) {
-                    y = topEdgePos;
-                    x = (y - b) / a;
-                } else {
-                    x = 0;
-                    y = a * x + b;
-                }
+                dist = CGRectContainsPoint(winFrame, leftPt) ? leftPt : topPt;
             }
         } else {
             if (deltaY < 0) {
                 NSLog(@"右下");
-                if (endPoint.y < rightEdgePos - endPoint.x) {
-                    y = 0;
-                    x = (y - b) / a;
-                } else {
-                    x = rightEdgePos;
-                    y = a * x + b;
-                }
+                dist = CGRectContainsPoint(winFrame, rightPt) ? rightPt : bottomPt;
             } else {
                 NSLog(@"右上");
-                if (topEdgePos - endPoint.y < rightEdgePos - endPoint.x) {
-                    y = topEdgePos;
-                    x = (y - b) / a;
-                } else {
-                    x = rightEdgePos;
-                    y = a * x + b;
-                }
+                dist = CGRectContainsPoint(winFrame, rightPt) ? rightPt : topPt;
             }
         }
-        if (x > rightEdgePos) x = rightEdgePos;
-        if (y > topEdgePos) y = topEdgePos;
-        
-        CGPoint dist = CGPointMake(x, y);
-        CCLOG(@"start(%d,%d) end(%d,%d) dist(%d,%d)", (int)startPoint.x, (int)startPoint.y, (int)endPoint.x, (int)endPoint.y, (int)dist.x, (int)dist.y);
+        CCLOG(@"\n start:%@ \n end:%@. \n a = %f \n b = %f \n left=%@, \n right=%@, \n top=%@, \n bottom=%@ => \n dist=%@",
+              NSStringFromCGPoint(startPoint),
+              NSStringFromCGPoint(endPoint),
+              a,
+              b,
+              NSStringFromCGPoint(leftPt),
+              NSStringFromCGPoint(rightPt),
+              NSStringFromCGPoint(topPt),
+              NSStringFromCGPoint(bottomPt),
+              NSStringFromCGPoint(dist)
+              );
         CCMoveTo* moveTo = [CCMoveTo actionWithDuration:0.5f position:dist];
         [targetRingo runAction:moveTo];
     }
@@ -220,7 +218,7 @@
 
                 int x = idxX * gridWidth + gridWidth / 2;
                 int y = idxY * gridHeight + 200 + gridHeight / 2;
-                CCLOG(@"x=%d, y=%d (try=%d)", idxX, idxY, tryCount);
+                //CCLOG(@"x=%d, y=%d (try=%d)", idxX, idxY, tryCount);
                 ringo.position = ccp(x, y);
                 
                 [self addChild:ringo];
