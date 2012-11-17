@@ -10,6 +10,7 @@
 		5EA1DFE3165642750004C709 /* background-hd.png in Resources */ = {isa = PBXBuildFile; fileRef = 5EA1DFE1165642750004C709 /* background-hd.png */; };
 		5EA1DFE4165642750004C709 /* characters-hd.png in Resources */ = {isa = PBXBuildFile; fileRef = 5EA1DFE2165642750004C709 /* characters-hd.png */; };
 		8A13B0CA16555F2200A79B6A /* Ringo.m in Sources */ = {isa = PBXBuildFile; fileRef = 8A13B0C916555F2200A79B6A /* Ringo.m */; };
+		8A13B0D01657DBB400A79B6A /* kago_front-hd.png in Resources */ = {isa = PBXBuildFile; fileRef = 8A13B0CF1657DBB400A79B6A /* kago_front-hd.png */; };
 		8A37522D1653FB49009151F4 /* background.png in Resources */ = {isa = PBXBuildFile; fileRef = 8A37522C1653FB49009151F4 /* background.png */; };
 		8A3752331653FC6C009151F4 /* Default-568h@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = 8A3752321653FC6C009151F4 /* Default-568h@2x.png */; };
 		8A37523516540CB6009151F4 /* characters.png in Resources */ = {isa = PBXBuildFile; fileRef = 8A37523416540CB6009151F4 /* characters.png */; };
@@ -146,6 +147,7 @@
 		5EA1DFE2165642750004C709 /* characters-hd.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "characters-hd.png"; path = "imgs/characters-hd.png"; sourceTree = "<group>"; };
 		8A13B0C816555F2200A79B6A /* Ringo.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Ringo.h; sourceTree = "<group>"; };
 		8A13B0C916555F2200A79B6A /* Ringo.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = Ringo.m; sourceTree = "<group>"; };
+		8A13B0CF1657DBB400A79B6A /* kago_front-hd.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "kago_front-hd.png"; path = "imgs/kago_front-hd.png"; sourceTree = "<group>"; };
 		8A37522C1653FB49009151F4 /* background.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = background.png; path = imgs/background.png; sourceTree = "<group>"; };
 		8A3752321653FC6C009151F4 /* Default-568h@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "Default-568h@2x.png"; path = "Resources/Default-568h@2x.png"; sourceTree = "<group>"; };
 		8A37523416540CB6009151F4 /* characters.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = characters.png; path = imgs/characters.png; sourceTree = "<group>"; };
@@ -491,6 +493,7 @@
 				5EA1DFE1165642750004C709 /* background-hd.png */,
 				8A37523416540CB6009151F4 /* characters.png */,
 				5EA1DFE2165642750004C709 /* characters-hd.png */,
+				8A13B0CF1657DBB400A79B6A /* kago_front-hd.png */,
 				8A3C4BFF1652BAC000B0C66B /* Default.png */,
 				8A3C4C011652BAC000B0C66B /* Default-Landscape~ipad.png */,
 				8A3752321653FC6C009151F4 /* Default-568h@2x.png */,
@@ -920,6 +923,7 @@
 				8A37523516540CB6009151F4 /* characters.png in Resources */,
 				5EA1DFE3165642750004C709 /* background-hd.png in Resources */,
 				5EA1DFE4165642750004C709 /* characters-hd.png in Resources */,
+				8A13B0D01657DBB400A79B6A /* kago_front-hd.png in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
