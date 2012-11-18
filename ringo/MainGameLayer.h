@@ -13,7 +13,7 @@
 #import "cocos2d.h"
 
 // HelloWorldLayer
-@interface MainGameLayer : CCLayer
+@interface MainGameLayer : CCLayer <UIAlertViewDelegate>
 {
 }
 
