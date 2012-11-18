@@ -21,14 +21,6 @@
 #define CHAR_TYPE_RINGO 1
 #define CHAR_TYPE_ENEMY 2
 
-#define ELEMENT_FREQUENCY_IN_SEC 0.5
-#define BIRD_FLY_WAITTIME_IN_SEC 2
-#define BIRD_FLY_SPEED_IN_SEC 1
-#define WARM_WAIT_IN_SEC 3
-
-#define RINGO_SPAWN_RATIO   6
-#define ENEMY_SPAWN_RATIO   4
-
 #define Z_IDX_BACKGROUND    0
 #define Z_IDX_RINGO         1
 #define Z_IDX_BIRD          2
@@ -38,12 +30,24 @@
 #define KAGO_EDGE_LEFT_X    64
 #define KAGO_EDGE_RIGHT_X   232
 
+//game params
+#define ELEMENT_FREQUENCY_IN_SEC 0.5
+#define BIRD_FLY_WAITTIME_IN_SEC 2
+#define BIRD_FLY_SPEED_IN_SEC 1
+#define WARM_WAIT_IN_SEC 3
+
+#define RINGO_SPAWN_RATIO   6
+#define ENEMY_SPAWN_RATIO   4
+
+#define MAX_MISS_COUNT      5
+
 @interface MainGameLayer ()
 @property NSMutableArray* ringoGrid;
 @property NSMutableArray* movingElements;
 @property NSMutableArray* flyingBirds;
 @property CCSprite* kago;
 @property CCLabelTTF* scoreLabel;
+@property CCLabelTTF* missLabel;
 @end
 
 @implementation MainGameLayer {
@@ -54,6 +58,7 @@
     CGRect _bird;
     CGPoint touchStartPoint;
     int _score;
+    int _missCount;
     BOOL _gameover;
 }
 
@@ -78,10 +83,16 @@
         self.kago.position = ccp(backImg.position.x, self.kago.contentSize.height / 2);
         [self addChild:self.kago z:Z_IDX_KAGO_FRONT];
         
-		self.scoreLabel = [CCLabelTTF labelWithString:@"0" fontName:@"Marker Felt" fontSize:30];
-		self.scoreLabel.position =  ccp( size.width /2 , 20);
+		self.scoreLabel = [CCLabelTTF labelWithString:@"" fontName:@"Marker Felt" fontSize:30];
+        self.scoreLabel.color = ccGREEN;
+		self.scoreLabel.position =  ccp( size.width /2 - 50 , 20);
 		[self addChild: self.scoreLabel z:Z_IDX_SCORE];
-        
+
+        self.missLabel = [CCLabelTTF labelWithString:@"" fontName:@"Marker Felt" fontSize:30];
+        self.missLabel.color = ccYELLOW;
+		self.missLabel.position =  ccp( size.width /2 + 50 , 20);
+		[self addChild: self.missLabel z:Z_IDX_SCORE];
+
         ringos[0] = CGRectMake(0, 0, 50, 50);
         ringos[1] = CGRectMake(0, 50, 50, 50);
         ringos[2] = CGRectMake(0, 100, 50, 50);
@@ -140,6 +151,10 @@
     _score = 0;
     [self updateScoreLabel];
     
+    //ミス回数リセット
+    _missCount = 0;
+    [self updateMissCountLabel];
+    
     //ゲームオーバーフラグリセット
     _gameover = NO;
 }
@@ -184,7 +199,9 @@
     for (Bird* bird in self.flyingBirds) {
         Ringo* removedRingo = [self removeRingoFromGridAt:bird.position];
         if (removedRingo) {
-            [self showGetLabelAt:removedRingo.position];
+            [self incrementMissCount];
+            [self updateMissCountLabel];
+            [self showMissLabelAt:removedRingo.position];
             [self removeChild:removedRingo cleanup:YES];
         }
     }
@@ -196,6 +213,8 @@
     NSMutableArray* removingElements = [NSMutableArray array];
     
     for (CCSprite* element in self.movingElements) {
+        
+        //バスケットに入ったelementを確認
         if (element.position.y < kagoY) {
             float x = element.position.x;
             if (KAGO_EDGE_LEFT_X < x && x < KAGO_EDGE_RIGHT_X) {
@@ -208,8 +227,8 @@
                     [removingElements addObject:element];
                 } else {
                     CCLOG(@"Gameover (get enemy :%@)", element);
-                    [self showGameoverDialog];
-                    _gameover = YES;
+                    [self showMissLabelAt:element.position];
+                    [self gameover];
                     return;
                 }
             }
@@ -291,6 +310,13 @@
         //elementを移動
         CCMoveTo* moveTo = [CCMoveTo actionWithDuration:0.5f position:dist];
         CCCallBlock* finishBlock = [CCCallBlock actionWithBlock:^ {
+            //リンゴを枠外に飛ばした場合はmiss++
+            if ([targetElement isKindOfClass:[Ringo class]]) {
+                [self incrementMissCount];
+                [self updateMissCountLabel];
+#warning missポップアップ出す
+            }
+            //枠外に飛んだelementを削除
             [self.movingElements removeObject:targetElement];
             [self removeChild:targetElement cleanup:YES];
         }];
@@ -323,8 +349,8 @@
                     continue;
                 }
                 CCSprite* sprite = (CCSprite*)element;
-                float h = sprite.contentSize.height;
-                float w = sprite.contentSize.width;
+                float h = sprite.contentSize.height * 1.2; //ちょっと大きめに
+                float w = sprite.contentSize.width * 1.2; //ちょっと大きめに
                 float x = sprite.position.x - w/2;
                 float y = sprite.position.y - h/2;
                 CGRect rect = CGRectMake(x, y, w, h);
@@ -336,42 +362,6 @@
         }
     }
     return nil;
-}
-
-- (void)showGameoverDialog {
-    NSString* message = @"";
-    BlocksAlertView* alert = [[BlocksAlertView alloc] initWithTitle:@"Game Over"
-                                                            message:message
-                                                  cancelButtonTitle:@"Back To Title"
-                                                  otherButtonTitles:@"Retry", nil];
-    [alert showWithCompletionBlock:^(NSInteger index) {
-        switch (index) {
-            case 0:
-                [[CCDirector sharedDirector] replaceScene:
-                 [CCTransitionFade transitionWithDuration:1.0
-                                                    scene:[IntroLayer scene] withColor:ccBLACK]];
-                break;
-            case 1:
-            default:
-                [self resetGame];
-        }
-    }];
-}
-
-- (void)showGetLabelAt:(CGPoint)position {
-    CCLabelTTF* getLabel = [CCLabelTTF labelWithString:@"Get!" fontName:@"Marker Felt" fontSize:20];
-    getLabel.color = ccRED;
-    getLabel.position = position;
-    [self addChild:getLabel z:Z_IDX_SCORE];
-    
-    CCMoveTo* flowAction = [CCMoveTo actionWithDuration:1.0 position:ccp(position.x, position.y + 50)];
-    CCFadeOut* fadeout = [CCFadeOut actionWithDuration:1.0];
-    CCSpawn* flowAndFadeout = [CCSpawn actions:flowAction, fadeout, nil];
-    CCCallBlock* removeBlock = [CCCallBlock actionWithBlock:^{
-        [self removeChild:getLabel cleanup:YES];
-    }];
-    CCSequence* seq = [CCSequence actions:flowAndFadeout, removeBlock, nil];
-    [getLabel runAction:seq];
 }
 
 //一定周期毎にリンゴor害虫を産み出す
@@ -403,6 +393,7 @@
                 [self fallToBasket:(Enemy*)element];
             }];
             [element runAction:[CCSequence actions:delay, block, nil]];
+            
         } else {
             //4種類のリンゴからランダム選出
             int ringoType = CCRANDOM_0_1() * 4;
@@ -474,8 +465,16 @@
     return sprite;
 }
 
-- (void)updateScoreLabel {
-    self.scoreLabel.string = [[NSNumber numberWithInt:_score] stringValue];
+- (void)incrementMissCount {
+    _missCount++;
+    if (_missCount > MAX_MISS_COUNT) {
+        [self gameover];
+    }
+}
+
+- (void)gameover {
+    [self showGameoverDialog];
+    _gameover = YES;
 }
 
 //warmがしばらく震えて、バスケットに向かって移動（=>ゲームオーバー）
@@ -494,5 +493,64 @@
      ];
     [self.movingElements addObject:warm];
 }
+
+#pragma mark show UI efect/response
+
+- (void)showGameoverDialog {
+    NSString* message = @"";
+    BlocksAlertView* alert = [[BlocksAlertView alloc] initWithTitle:@"Game Over"
+                                                            message:message
+                                                  cancelButtonTitle:@"Back To Title"
+                                                  otherButtonTitles:@"Retry", nil];
+    [alert showWithCompletionBlock:^(NSInteger index) {
+        switch (index) {
+            case 0:
+                [[CCDirector sharedDirector] replaceScene:
+                 [CCTransitionFade transitionWithDuration:1.0
+                                                    scene:[IntroLayer scene] withColor:ccBLACK]];
+                break;
+            case 1:
+            default:
+                [self resetGame];
+        }
+    }];
+}
+
+- (void)showGetLabelAt:(CGPoint)position {
+    [self showPopupLabelAt:position label:@"Get!!!" color:ccGREEN];
+}
+
+- (void)showMissLabelAt:(CGPoint)position {
+    [self showPopupLabelAt:position label:@"Miss!!!" color:ccYELLOW];
+}
+
+- (void)showPopupLabelAt:(CGPoint)position label:(NSString*)label color:(ccColor3B)color {
+    CCLabelTTF* getLabel = [CCLabelTTF labelWithString:label fontName:@"Marker Felt" fontSize:28];
+    getLabel.color = color;
+    getLabel.position = position;
+    [self addChild:getLabel z:Z_IDX_SCORE];
+    
+    CCMoveTo* flowAction = [CCMoveTo actionWithDuration:1.0 position:ccp(position.x, position.y + 50)];
+    CCFadeOut* fadeout = [CCFadeOut actionWithDuration:1.0];
+    CCSpawn* flowAndFadeout = [CCSpawn actions:flowAction, fadeout, nil];
+    CCCallBlock* removeBlock = [CCCallBlock actionWithBlock:^{
+        [self removeChild:getLabel cleanup:YES];
+    }];
+    CCSequence* seq = [CCSequence actions:flowAndFadeout, removeBlock, nil];
+    [getLabel runAction:seq];
+}
+
+- (void)updateScoreLabel {
+    self.scoreLabel.string = [NSString stringWithFormat:@"Score:%d", _score];
+}
+
+- (void)updateMissCountLabel {
+    if (_missCount > MAX_MISS_COUNT) {
+        self.missLabel.color = ccRED;
+    }
+    self.missLabel.string = [NSString stringWithFormat:@"Miss:%d", _missCount];
+}
+
+
 
 @end
