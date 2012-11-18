@@ -12,6 +12,7 @@
 #import "AppDelegate.h"
 #import "Ringo.h"
 #import "Enemy.h"
+#import "Bird.h"
 #import "BlocksAlertView.h"
 
 #define RINGO_GRID_WIDTH 6
@@ -21,13 +22,16 @@
 #define CHAR_TYPE_ENEMY 2
 
 #define ELEMENT_FREQUENCY_IN_SEC 1
+#define BIRD_FLY_WAITTIME_IN_SEC 3
+#define BIRD_FLY_SPEED_IN_SEC 1
 
 #define RINGO_SPAWN_RATIO   7
 #define ENEMY_SPAWN_RATIO   3
 
 #define Z_IDX_BACKGROUND    0
 #define Z_IDX_RINGO         1
-#define Z_IDX_KAGO_FRONT    2
+#define Z_IDX_BIRD          2
+#define Z_IDX_KAGO_FRONT    3
 #define Z_IDX_SCORE         5
 
 #define KAGO_EDGE_LEFT_X    64
@@ -36,6 +40,7 @@
 @interface MainGameLayer ()
 @property NSMutableArray* ringoGrid;
 @property NSMutableArray* movingElements;
+@property NSMutableArray* flyingBirds;
 @property CCSprite* kago;
 @property CCLabelTTF* scoreLabel;
 @end
@@ -45,7 +50,7 @@
     CGRect ringos[4];
     CGRect deadRingo;
     CGRect enemies[2];
-    CGRect bird;
+    CGRect _bird;
     CGPoint touchStartPoint;
     int _score;
     BOOL _gameover;
@@ -85,7 +90,7 @@
         
         enemies[0] = CGRectMake(50, 50, 50, 50);
         enemies[1] = CGRectMake(50, 100, 50, 50);
-        bird = CGRectMake(0, 225, 75, 60);
+        _bird = CGRectMake(0, 225, 75, 60);
 
         srandom(time(NULL));
         
@@ -124,6 +129,12 @@
     }
     self.movingElements = [NSMutableArray array];
     
+    //飛んでいるトリをビューから消してコレクション初期化
+    for (Bird* bird in self.flyingBirds) {
+        [self removeChild:bird cleanup:YES];
+    }
+    self.flyingBirds = [NSMutableArray array];
+    
     //スコアリセット
     _score = 0;
     [self updateScoreLabel];
@@ -151,32 +162,79 @@
 - (void)ccTouchEnded:(UITouch *)touch withEvent:(UIEvent *)event {
     CGPoint touchEndPoint = [self convertTouchToNodeSpace: touch];
     //CCLOG(@"touch end: %d,%d", (int)touchEndPoint.x, (int)touchEndPoint.y);
-    [self ringoFlickedFrom:touchStartPoint endPoint:touchEndPoint];
+    [self elementFlickedFrom:touchStartPoint endPoint:touchEndPoint];
 }
 - (void)ccTouchCancelled:(UITouch *)touch withEvent:(UIEvent *)event {
     
 }
 
-//フリック操作の開始終了座標をもとにリンゴを投げる
-- (void)ringoFlickedFrom:(CGPoint)startPoint endPoint:(CGPoint)endPoint {
-    CCSprite* targetRingo = [self removeRingoAt:startPoint];
-    if (targetRingo) {
+#pragma mark main loop
+
+- (void)update:(ccTime)delta {
+    if (_gameover) {
+        return;
+    }
+    [self spawnElement:delta];
+    [self checkMovingElementsPosition:delta];
+    [self checkFlyingBirds:delta];
+}
+
+- (void)checkFlyingBirds:(ccTime)delta {
+    for (Bird* bird in self.flyingBirds) {
+        Ringo* removedRingo = [self removeRingoFromGridAt:bird.position];
+        if (removedRingo) {
+            [self showGetLabelAt:removedRingo.position];
+            [self removeChild:removedRingo cleanup:YES];
+        }
+    }
+}
+
+- (void)checkMovingElementsPosition:(ccTime)delta {
+    float kagoY = self.kago.contentSize.height;
+    for (CCSprite* element in self.movingElements) {
+        if (element.position.y < kagoY) {
+            float x = element.position.x;
+            if (KAGO_EDGE_LEFT_X < x && x < KAGO_EDGE_RIGHT_X) {
+                if ([element isKindOfClass:[Ringo class]]) {
+                    CCLOG(@"Get Ringo! %@", element);
+                    _score++;
+                    [self updateScoreLabel];
+                    [self showGetLabelAt:element.position];
+                    [self.movingElements removeObject:element];
+                    [self removeChild:element cleanup:YES];
+                } else {
+                    CCLOG(@"Gameover (get enemy :%@)", element);
+                    [self showGameoverDialog];
+                    _gameover = YES;
+                    return;
+                }
+            }
+        }
+    }
+}
+
+#pragma mark GameLogics
+
+//フリック操作の開始終了座標をもとにelementを投げる
+- (void)elementFlickedFrom:(CGPoint)startPoint endPoint:(CGPoint)endPoint {
+    CCSprite* targetElement = [self removeElementFromGridAt:startPoint];
+    if (targetElement) {
         
-        //移動中リンゴリストに追加
-        [self.movingElements addObject:targetRingo];
+        //移動中elementリストに追加
+        [self.movingElements addObject:targetElement];
         
         //タッチの始点・終点から一次方程式を解く
         float a = (startPoint.y - endPoint.y) / (startPoint.x - endPoint.x);
         float b = endPoint.y - (a * endPoint.x);
         float x, y;
-
+        
         //方程式の線と、上下左右の端が交差する点をそれぞれ割り出し
         CGSize size = [[CCDirector sharedDirector] winSize];
-        float topEdgePos = size.height - 50 + targetRingo.contentSize.height;
-        float bottomEdgePos = -1 * targetRingo.contentSize.height;
-        float rightEdgePos = size.width + targetRingo.contentSize.width;
-        float leftEdgePos = -1 * targetRingo.contentSize.width;
-
+        float topEdgePos = size.height - 50 + targetElement.contentSize.height;
+        float bottomEdgePos = -1 * targetElement.contentSize.height;
+        float rightEdgePos = size.width + targetElement.contentSize.width;
+        float leftEdgePos = -1 * targetElement.contentSize.width;
+        
         x = leftEdgePos;
         CGPoint leftPt = CGPointMake(x, (a * x + b));
         x = rightEdgePos;
@@ -189,8 +247,8 @@
         //方向から目的地を決定 (CGRectContainsPointは境界値を範囲外と判定するので+1余裕をもたせる)
         CGRect winFrame = CGRectMake(leftEdgePos,
                                      bottomEdgePos,
-                                     size.width + (targetRingo.contentSize.width * 2) + 1,
-                                     size.height + (targetRingo.contentSize.height * 2) + 1);
+                                     size.width + (targetElement.contentSize.width * 2) + 1,
+                                     size.height + (targetElement.contentSize.height * 2) + 1);
         CGPoint dist;
         
         float deltaX = endPoint.x - startPoint.x;
@@ -225,32 +283,49 @@
               NSStringFromCGPoint(dist)
               );
         
-        //リンゴを移動
+        //elementを移動
         CCMoveTo* moveTo = [CCMoveTo actionWithDuration:0.5f position:dist];
         CCCallBlock* finishBlock = [CCCallBlock actionWithBlock:^ {
-            [self.movingElements removeObject:targetRingo];
-            [self removeChild:targetRingo cleanup:YES];
+            [self.movingElements removeObject:targetElement];
+            [self removeChild:targetElement cleanup:YES];
         }];
         CCSequence* seq = [CCSequence actions:moveTo, finishBlock, nil];
-        [targetRingo runAction:seq];
+        [targetElement runAction:seq];
     }
 }
 
-//タップした場所にりんごが入ればgridから削除して返す。なければnilを返す
-- (Ringo*)removeRingoAt:(CGPoint)point {
+//タップした場所にelementがいればgridから削除して返す。なければnilを返す
+- (CCSprite*)removeElementFromGridAt:(CGPoint)point {
+    return [self removeElementFromGridAt:point onlyRingo:NO];
+}
+
+//タップした場所にRingoがいればgridから削除して返す。なければnilを返す
+- (Ringo*)removeRingoFromGridAt:(CGPoint)point {
+    return (Ringo*)[self removeElementFromGridAt:point onlyRingo:YES];
+}
+
+//タップした場所にelementがいればgridから削除して返す。なければnilを返す
+- (CCSprite*)removeElementFromGridAt:(CGPoint)point onlyRingo:(BOOL)onlyRingo {
+    
     for (NSMutableArray* row in self.ringoGrid) {
+        
         for (int idx = 0; idx < [row count]; idx++) {
-            id item = [row objectAtIndex:idx];
-            if (item != [NSNull null]) {
-                Ringo* ringo = (Ringo*)item;
-                float h = ringo.contentSize.height;
-                float w = ringo.contentSize.width;
-                float x = ringo.position.x - w/2;
-                float y = ringo.position.y - h/2;
+            id element = [row objectAtIndex:idx];
+            
+            if (element != [NSNull null]) {
+                //リンゴだけ消す場合は型チェック
+                if (onlyRingo && [element isKindOfClass:[Ringo class]] == NO) {
+                    continue;
+                }
+                CCSprite* sprite = (CCSprite*)element;
+                float h = sprite.contentSize.height;
+                float w = sprite.contentSize.width;
+                float x = sprite.position.x - w/2;
+                float y = sprite.position.y - h/2;
                 CGRect rect = CGRectMake(x, y, w, h);
                 if (CGRectContainsPoint(rect, point)) {
                     [row replaceObjectAtIndex:idx withObject:[NSNull null]];
-                    return ringo;
+                    return sprite;
                 }
             }
         }
@@ -258,40 +333,6 @@
     return nil;
 }
 
-#pragma mark main loop
-
-- (void)update:(ccTime)delta {
-    if (_gameover) {
-        return;
-    }
-    [self spawnElement:delta];
-    [self checkMovingElementsPosition:delta];
-    
-}
-
-- (void)checkMovingElementsPosition:(ccTime)delta {
-    float kagoY = self.kago.contentSize.height;
-    for (CCSprite* element in self.movingElements) {
-        if (element.position.y < kagoY) {
-            float x = element.position.x;
-            if (KAGO_EDGE_LEFT_X < x && x < KAGO_EDGE_RIGHT_X) {
-                if ([element isKindOfClass:[Ringo class]]) {
-                    CCLOG(@"Get Ringo! %@", element);
-                    _score++;
-                    [self updateScoreLabel];
-                    [self showGetLabelAt:element.position];
-                    [self.movingElements removeObject:element];
-                    [self removeChild:element cleanup:YES];
-                } else {
-                    CCLOG(@"Gameover (get enemy :%@)", element);
-                    [self showGameoverDialog];
-                    _gameover = YES;
-                    return;
-                }
-            }
-        }
-    }
-}
 - (void)showGameoverDialog {
     NSString* message = @"";
     BlocksAlertView* alert = [[BlocksAlertView alloc] initWithTitle:@"Game Over"
@@ -350,10 +391,18 @@
             //2種類の的からランダム選出
             int type = CCRANDOM_0_1() * 2;
             element = [Enemy spriteWithFile:@"characters.png" rect:enemies[type]];
+            
         } else {
             //4種類のリンゴからランダム選出
             int ringoType = CCRANDOM_0_1() * 4;
             element = [Ringo spriteWithFile:@"characters.png" rect:ringos[ringoType]];
+            
+            CCDelayTime* delayTimeAction = [CCDelayTime actionWithDuration:BIRD_FLY_WAITTIME_IN_SEC];
+            CCCallBlock* birdAction = [CCCallBlock actionWithBlock:^{
+                NSLog(@"bird!!!");
+                [self flyBirdTo:(Ringo*)element];
+            }];
+            [element runAction:[CCSequence actions:delayTimeAction, birdAction, nil]];
         }
         
         [row replaceObjectAtIndex:idxX withObject:element];
@@ -369,6 +418,25 @@
         
         [self addChild:element z:Z_IDX_RINGO];
     }
+}
+
+- (void)flyBirdTo:(Ringo*)ringo {
+    Bird* bird = [Bird spriteWithFile:@"characters.png" rect:_bird];
+    [self addChild:bird z:Z_IDX_BIRD];
+    [self.flyingBirds addObject:bird];
+    
+    CGSize size = [[CCDirector sharedDirector] winSize];
+    CGPoint startPos = ccp(size.width + bird.contentSize.width / 2, ringo.position.y);
+    CGPoint endPos = ccp(-1 * bird.contentSize.width / 2, ringo.position.y);
+    bird.position = startPos;
+    
+    CCMoveTo* moveTo = [CCMoveTo actionWithDuration:BIRD_FLY_SPEED_IN_SEC position:endPos];
+    CCCallBlock* finish = [CCCallBlock actionWithBlock:^{
+        [self removeChild:bird cleanup:YES];
+        [self.flyingBirds removeObject:bird];
+    }];
+    CCSequence* seq = [CCSequence actions:moveTo, finish, nil];
+    [bird runAction:seq];
 }
 
 - (CGPoint)findEmptyGridIndexAtRandom {
