@@ -21,12 +21,13 @@
 #define CHAR_TYPE_RINGO 1
 #define CHAR_TYPE_ENEMY 2
 
-#define ELEMENT_FREQUENCY_IN_SEC 1
-#define BIRD_FLY_WAITTIME_IN_SEC 3
+#define ELEMENT_FREQUENCY_IN_SEC 0.5
+#define BIRD_FLY_WAITTIME_IN_SEC 2
 #define BIRD_FLY_SPEED_IN_SEC 1
+#define WARM_WAIT_IN_SEC 3
 
-#define RINGO_SPAWN_RATIO   7
-#define ENEMY_SPAWN_RATIO   3
+#define RINGO_SPAWN_RATIO   6
+#define ENEMY_SPAWN_RATIO   4
 
 #define Z_IDX_BACKGROUND    0
 #define Z_IDX_RINGO         1
@@ -191,6 +192,9 @@
 
 - (void)checkMovingElementsPosition:(ccTime)delta {
     float kagoY = self.kago.contentSize.height;
+    
+    NSMutableArray* removingElements = [NSMutableArray array];
+    
     for (CCSprite* element in self.movingElements) {
         if (element.position.y < kagoY) {
             float x = element.position.x;
@@ -200,8 +204,8 @@
                     _score++;
                     [self updateScoreLabel];
                     [self showGetLabelAt:element.position];
-                    [self.movingElements removeObject:element];
                     [self removeChild:element cleanup:YES];
+                    [removingElements addObject:element];
                 } else {
                     CCLOG(@"Gameover (get enemy :%@)", element);
                     [self showGameoverDialog];
@@ -211,6 +215,7 @@
             }
         }
     }
+    [self.movingElements removeObjectsInArray:removingElements];
 }
 
 #pragma mark GameLogics
@@ -392,11 +397,18 @@
             int type = CCRANDOM_0_1() * 2;
             element = [Enemy spriteWithFile:@"characters.png" rect:enemies[type]];
             
+            //ムシを放置しておくとカゴに勝手に入ってきてゲームオーバー
+            CCDelayTime* delay = [CCDelayTime actionWithDuration:WARM_WAIT_IN_SEC];
+            CCCallBlock* block = [CCCallBlock actionWithBlock:^{
+                [self fallToBasket:(Enemy*)element];
+            }];
+            [element runAction:[CCSequence actions:delay, block, nil]];
         } else {
             //4種類のリンゴからランダム選出
             int ringoType = CCRANDOM_0_1() * 4;
             element = [Ringo spriteWithFile:@"characters.png" rect:ringos[ringoType]];
             
+            //リンゴを放置しておくとトリが食いに来る
             CCDelayTime* delayTimeAction = [CCDelayTime actionWithDuration:BIRD_FLY_WAITTIME_IN_SEC];
             CCCallBlock* birdAction = [CCCallBlock actionWithBlock:^{
                 NSLog(@"bird!!!");
@@ -464,6 +476,23 @@
 
 - (void)updateScoreLabel {
     self.scoreLabel.string = [[NSNumber numberWithInt:_score] stringValue];
+}
+
+//warmがしばらく震えて、バスケットに向かって移動（=>ゲームオーバー）
+- (void)fallToBasket:(Enemy*)warm {
+    CGPoint orgPos = warm.position;
+
+    [warm runAction:[CCSequence actions:
+                     [CCRepeat actionWithAction:
+                      [CCSequence actions:
+                       [CCMoveTo actionWithDuration:0.1 position:ccp(orgPos.x + 5, orgPos.y)],
+                       [CCMoveTo actionWithDuration:0.1 position:ccp(orgPos.x - 5, orgPos.y)],
+                       nil
+                       ] times:5],
+                     [CCMoveTo actionWithDuration:0.5 position:self.kago.position],
+                     nil]
+     ];
+    [self.movingElements addObject:warm];
 }
 
 @end
