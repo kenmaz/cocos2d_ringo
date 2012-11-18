@@ -10,6 +10,14 @@
 // When you import this file, you import all the cocos2d classes
 #import "cocos2d.h"
 
+typedef enum {
+    GameModeNone = 0,
+    GameModeEasy = 1,
+    GameModeNormal = 2,
+    GameModeHard = 3,
+    GameModeCount = 4,
+} GameMode;
+
 // HelloWorldLayer
 @interface IntroLayer : CCLayer
 {

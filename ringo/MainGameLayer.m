@@ -8,7 +8,6 @@
 
 
 #import "MainGameLayer.h"
-#import "IntroLayer.h"
 #import "AppDelegate.h"
 #import "Ringo.h"
 #import "Enemy.h"
@@ -31,7 +30,10 @@
 #define KAGO_EDGE_RIGHT_X   232
 
 //game params
-#define ELEMENT_FREQUENCY_IN_SEC 0.5
+#define ELEMENT_SPAWN_FREQUENCY_IN_SEC_AS_EASY 0.75
+#define ELEMENT_SPAWN_FREQUENCY_IN_SEC_AS_NORMAL 0.625
+#define ELEMENT_SPAWN_FREQUENCY_IN_SEC_AS_HARD 0.5
+
 #define BIRD_FLY_WAITTIME_IN_SEC 2
 #define BIRD_FLY_SPEED_IN_SEC 1
 #define WARM_WAIT_IN_SEC 3
@@ -48,6 +50,7 @@
 @property CCSprite* kago;
 @property CCLabelTTF* scoreLabel;
 @property CCLabelTTF* missLabel;
+@property GameMode gameMode;
 @end
 
 @implementation MainGameLayer {
@@ -57,15 +60,19 @@
     CGRect enemies[2];
     CGRect _bird;
     CGPoint touchStartPoint;
+    float _elementSpawnFrequencyInSec;
     int _score;
     int _missCount;
     BOOL _gameover;
 }
 
-+(CCScene *) scene {
+#pragma mark cocos2d lifecycle
+
++(CCScene *) sceneWithGameMode:(GameMode)gameMode {
 	CCScene *scene = [CCScene node];
 
     MainGameLayer *layer = [MainGameLayer node];
+    layer.gameMode = gameMode;
 	[scene addChild: layer];
 
 	return scene;
@@ -114,49 +121,17 @@
 	}
 	return self;
 }
-
-- (void)resetGame {
-    
-    //木に生えているelementをビューから破棄して、nullオブジェクトで埋める
-    for (NSArray* row in self.ringoGrid) {
-        for (id element in row) {
-            if (element != [NSNull null]) {
-                [self removeChild:element cleanup:YES];
-            }
-        }
+- (void)onEnter {
+    if (self.gameMode == GameModeEasy) {
+        _elementSpawnFrequencyInSec = ELEMENT_SPAWN_FREQUENCY_IN_SEC_AS_EASY;
     }
-    self.ringoGrid = [NSMutableArray array];
-    for (int y = 0; y < RINGO_GRID_HEIGHT; y++) {
-        NSMutableArray* ringoGridRow = [NSMutableArray array];
-        [self.ringoGrid addObject:ringoGridRow];
-        
-        for (int x = 0; x < RINGO_GRID_WIDTH; x++) {
-            [ringoGridRow addObject:[NSNull null]];
-        }
+    else if (self.gameMode == GameModeHard) {
+        _elementSpawnFrequencyInSec = ELEMENT_SPAWN_FREQUENCY_IN_SEC_AS_HARD;
     }
-
-    //動いているelementをビューから破棄してmoveingElement初期化
-    for (CCSprite* element in self.movingElements) {
-        [self removeChild:element cleanup:YES];
+    else {
+        _elementSpawnFrequencyInSec = ELEMENT_SPAWN_FREQUENCY_IN_SEC_AS_NORMAL;
     }
-    self.movingElements = [NSMutableArray array];
-    
-    //飛んでいるトリをビューから消してコレクション初期化
-    for (Bird* bird in self.flyingBirds) {
-        [self removeChild:bird cleanup:YES];
-    }
-    self.flyingBirds = [NSMutableArray array];
-    
-    //スコアリセット
-    _score = 0;
-    [self updateScoreLabel];
-    
-    //ミス回数リセット
-    _missCount = 0;
-    [self updateMissCountLabel];
-    
-    //ゲームオーバーフラグリセット
-    _gameover = NO;
+    [super onEnter];
 }
 
 - (void)registerWithTouchDispatcher {
@@ -200,7 +175,6 @@
         Ringo* removedRingo = [self removeRingoFromGridAt:bird.position];
         if (removedRingo) {
             [self incrementMissCount];
-            [self updateMissCountLabel];
             [self showMissLabelAt:removedRingo.position];
             [self removeChild:removedRingo cleanup:YES];
         }
@@ -226,11 +200,11 @@
                     [self removeChild:element cleanup:YES];
                     [removingElements addObject:element];
                 } else {
-                    CCLOG(@"Gameover (get enemy :%@)", element);
+                    CCLOG(@"Miss! (get enemy :%@)", element);
+                    [self incrementMissCount];
                     [self showMissLabelAt:element.position];
-                    [self gameover];
-                    return;
                 }
+                [removingElements addObject:element];
             }
         }
     }
@@ -238,6 +212,50 @@
 }
 
 #pragma mark GameLogics
+
+- (void)resetGame {
+    
+    //木に生えているelementをビューから破棄して、nullオブジェクトで埋める
+    for (NSArray* row in self.ringoGrid) {
+        for (id element in row) {
+            if (element != [NSNull null]) {
+                [self removeChild:element cleanup:YES];
+            }
+        }
+    }
+    self.ringoGrid = [NSMutableArray array];
+    for (int y = 0; y < RINGO_GRID_HEIGHT; y++) {
+        NSMutableArray* ringoGridRow = [NSMutableArray array];
+        [self.ringoGrid addObject:ringoGridRow];
+        
+        for (int x = 0; x < RINGO_GRID_WIDTH; x++) {
+            [ringoGridRow addObject:[NSNull null]];
+        }
+    }
+    
+    //動いているelementをビューから破棄してmoveingElement初期化
+    for (CCSprite* element in self.movingElements) {
+        [self removeChild:element cleanup:YES];
+    }
+    self.movingElements = [NSMutableArray array];
+    
+    //飛んでいるトリをビューから消してコレクション初期化
+    for (Bird* bird in self.flyingBirds) {
+        [self removeChild:bird cleanup:YES];
+    }
+    self.flyingBirds = [NSMutableArray array];
+    
+    //スコアリセット
+    _score = 0;
+    [self updateScoreLabel];
+    
+    //ミス回数リセット
+    _missCount = 0;
+    [self updateMissCountLabel];
+    
+    //ゲームオーバーフラグリセット
+    _gameover = NO;
+}
 
 //フリック操作の開始終了座標をもとにelementを投げる
 - (void)elementFlickedFrom:(CGPoint)startPoint endPoint:(CGPoint)endPoint {
@@ -254,10 +272,10 @@
         
         //方程式の線と、上下左右の端が交差する点をそれぞれ割り出し
         CGSize size = [[CCDirector sharedDirector] winSize];
-        float topEdgePos = size.height - 50 + targetElement.contentSize.height;
-        float bottomEdgePos = -1 * targetElement.contentSize.height;
-        float rightEdgePos = size.width + targetElement.contentSize.width;
-        float leftEdgePos = -1 * targetElement.contentSize.width;
+        float topEdgePos = size.height;
+        float bottomEdgePos = 0;
+        float rightEdgePos = size.width;
+        float leftEdgePos = 0;
         
         x = leftEdgePos;
         CGPoint leftPt = CGPointMake(x, (a * x + b));
@@ -271,26 +289,26 @@
         //方向から目的地を決定 (CGRectContainsPointは境界値を範囲外と判定するので+1余裕をもたせる)
         CGRect winFrame = CGRectMake(leftEdgePos,
                                      bottomEdgePos,
-                                     size.width + (targetElement.contentSize.width * 2) + 1,
-                                     size.height + (targetElement.contentSize.height * 2) + 1);
+                                     size.width + 1,
+                                     size.height + 1);
         CGPoint dist;
         
         float deltaX = endPoint.x - startPoint.x;
         float deltaY = endPoint.y - startPoint.y;
         if (deltaX < 0) {
             if (deltaY < 0) {
-                NSLog(@"左下");
+                CCLOG(@"左下");
                 dist = CGRectContainsPoint(winFrame, leftPt) ? leftPt : bottomPt;
             } else {
-                NSLog(@"左上");
+                CCLOG(@"左上");
                 dist = CGRectContainsPoint(winFrame, leftPt) ? leftPt : topPt;
             }
         } else {
             if (deltaY < 0) {
-                NSLog(@"右下");
+                CCLOG(@"右下");
                 dist = CGRectContainsPoint(winFrame, rightPt) ? rightPt : bottomPt;
             } else {
-                NSLog(@"右上, %d",CGRectContainsPoint(winFrame, rightPt));
+                CCLOG(@"右上, %d",CGRectContainsPoint(winFrame, rightPt));
                 dist = CGRectContainsPoint(winFrame, rightPt) ? rightPt : topPt;
             }
         }
@@ -313,8 +331,7 @@
             //リンゴを枠外に飛ばした場合はmiss++
             if ([targetElement isKindOfClass:[Ringo class]]) {
                 [self incrementMissCount];
-                [self updateMissCountLabel];
-#warning missポップアップ出す
+                [self showMissLabelAt:targetElement.position];
             }
             //枠外に飛んだelementを削除
             [self.movingElements removeObject:targetElement];
@@ -365,9 +382,10 @@
 }
 
 //一定周期毎にリンゴor害虫を産み出す
+#warning 生み出すときにいい感じのエフェクト
 - (void)spawnElement:(ccTime)delta {
     spawnElementElapsed += delta;
-    if (spawnElementElapsed > ELEMENT_FREQUENCY_IN_SEC) {
+    if (spawnElementElapsed > _elementSpawnFrequencyInSec) {
         spawnElementElapsed = 0;
         
         //空いている場所を検索
@@ -387,7 +405,7 @@
             int type = CCRANDOM_0_1() * 2;
             element = [Enemy spriteWithFile:@"characters.png" rect:enemies[type]];
             
-            //ムシを放置しておくとカゴに勝手に入ってきてゲームオーバー
+            //ムシを放置しておくとカゴに勝手に入ってきてミス
             CCDelayTime* delay = [CCDelayTime actionWithDuration:WARM_WAIT_IN_SEC];
             CCCallBlock* block = [CCCallBlock actionWithBlock:^{
                 [self fallToBasket:(Enemy*)element];
@@ -402,7 +420,7 @@
             //リンゴを放置しておくとトリが食いに来る
             CCDelayTime* delayTimeAction = [CCDelayTime actionWithDuration:BIRD_FLY_WAITTIME_IN_SEC];
             CCCallBlock* birdAction = [CCCallBlock actionWithBlock:^{
-                NSLog(@"bird!!!");
+                CCLOG(@"bird!!!");
                 [self flyBirdTo:(Ringo*)element];
             }];
             [element runAction:[CCSequence actions:delayTimeAction, birdAction, nil]];
@@ -467,14 +485,18 @@
 
 - (void)incrementMissCount {
     _missCount++;
-    if (_missCount > MAX_MISS_COUNT) {
+    [self updateMissCountLabel];
+    
+    if (_missCount >= MAX_MISS_COUNT) {
         [self gameover];
     }
 }
 
 - (void)gameover {
-    [self showGameoverDialog];
-    _gameover = YES;
+    if (_gameover == NO) {
+        [self showGameoverDialog];
+        _gameover = YES;
+    }
 }
 
 //warmがしばらく震えて、バスケットに向かって移動（=>ゲームオーバー）
@@ -497,7 +519,8 @@
 #pragma mark show UI efect/response
 
 - (void)showGameoverDialog {
-    NSString* message = @"";
+    NSString* message = self.scoreLabel.string;
+    
     BlocksAlertView* alert = [[BlocksAlertView alloc] initWithTitle:@"Game Over"
                                                             message:message
                                                   cancelButtonTitle:@"Back To Title"
@@ -521,6 +544,7 @@
 }
 
 - (void)showMissLabelAt:(CGPoint)position {
+#warning 欄外リンゴはみ出し時に調整
     [self showPopupLabelAt:position label:@"Miss!!!" color:ccYELLOW];
 }
 
@@ -545,7 +569,7 @@
 }
 
 - (void)updateMissCountLabel {
-    if (_missCount > MAX_MISS_COUNT) {
+    if (_missCount >= MAX_MISS_COUNT) {
         self.missLabel.color = ccRED;
     }
     self.missLabel.string = [NSString stringWithFormat:@"Miss:%d", _missCount];

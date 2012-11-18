@@ -6,11 +6,8 @@
 //  Copyright __MyCompanyName__ 2012年. All rights reserved.
 //
 
-
-#import <GameKit/GameKit.h>
-
-// When you import this file, you import all the cocos2d classes
 #import "cocos2d.h"
+#import "IntroLayer.h"
 
 // HelloWorldLayer
 @interface MainGameLayer : CCLayer <UIAlertViewDelegate>
@@ -18,6 +15,6 @@
 }
 
 // returns a CCScene that contains the HelloWorldLayer as the only child
-+(CCScene *) scene;
++(CCScene *) sceneWithGameMode:(GameMode)gameMode;
 
 @end

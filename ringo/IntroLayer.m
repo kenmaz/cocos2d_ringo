@@ -57,17 +57,17 @@
 		CCMenuItem *easyMenu = [CCMenuItemFont
                                 itemWithString:@"Easy"
                                 block:^(id sender) {
-                                    [self transitionGameScence];
+                                    [self transitionGameScence:GameModeEasy];
                                 }];
 		CCMenuItem *normalMenu = [CCMenuItemFont
                                   itemWithString:@"Normal"
                                   block:^(id sender) {
-                                      [self transitionGameScence];
+                                      [self transitionGameScence:GameModeNormal];
                                   }];
 		CCMenuItem *hardMenu = [CCMenuItemFont
                                 itemWithString:@"Hard"
                                 block:^(id sender) {
-                                    [self transitionGameScence];
+                                    [self transitionGameScence:GameModeHard];
                                 }];
 		
 		CCMenu *menu = [CCMenu menuWithItems:easyMenu, normalMenu, hardMenu, nil];
@@ -81,7 +81,7 @@
 	return self;
 }
 
--(void) transitionGameScence {
-	[[CCDirector sharedDirector] replaceScene:[CCTransitionFade transitionWithDuration:1.0 scene:[MainGameLayer scene] withColor:ccBLACK]];
+-(void) transitionGameScence:(GameMode)gameMode {
+	[[CCDirector sharedDirector] replaceScene:[CCTransitionFade transitionWithDuration:1.0 scene:[MainGameLayer sceneWithGameMode:gameMode] withColor:ccBLACK]];
 }
 @end
